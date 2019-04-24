@@ -1,9 +1,9 @@
 import Frame from './models/frame';
 import {FRAME_TYPE} from './consts/bowling.consts';
 import ThrowResult from './models/throw.result';
-import {IGameStatus, IBowlingGame, IBowlingGameConfiguration} from './interfaces/bowling.interfaces';
-import ThrowHelper from './throw.helper';
+import {IGameStatus, IBowlingGame, IBowlingGameConfiguration, IThrowRunner} from './interfaces/bowling.interfaces';
 import Pin from './models/pin';
+import {Error} from 'tslint/lib/error';
 
 const defaultConfiguration: IBowlingGameConfiguration = {
    frames: 10,
@@ -21,16 +21,17 @@ export default class BowlingManager implements IBowlingGame {
     private _bonusThrowsResults: Array<ThrowResult>;
     private _bonusThrows: number;
     private _isEndOfGame: boolean;
-    private _bonusPins: Array<Pin> = [];
     private _virtualFrame: Frame;
+    private _throwRunner: IThrowRunner;
     private _isBonusGame: boolean;
 
     public get GameConfiguration(): IBowlingGameConfiguration {
         return Object.assign({}, this._gameConfig); // We use Object assign in order to prevent change configuration object outside the manager
     }
 
-    constructor(gameConfiguration?: IBowlingGameConfiguration) {
+    constructor(throwRunner?: IThrowRunner, gameConfiguration?: IBowlingGameConfiguration) {
         this._gameConfig = Object.assign({}, defaultConfiguration, gameConfiguration);
+        this._throwRunner = throwRunner;
     }
 
     public startNewGame() {
@@ -38,7 +39,10 @@ export default class BowlingManager implements IBowlingGame {
         this.addFrame();
     }
 
-    public throwBall() : IGameStatus {
+    public throwBall(throwRunner?: IThrowRunner): IGameStatus {
+        if (throwRunner) {
+            this._throwRunner = throwRunner;
+        }
         if (!this.isThrowAllowed()) {
             throw new Error('You have finished the game already. Please start the new one!');
         }
@@ -107,7 +111,7 @@ export default class BowlingManager implements IBowlingGame {
 
     private getActiveFrame() {
         if (this._isBonusGame) {
-            if (this._bonusThrows == 0) {
+            if (this._bonusThrows === 0) {
                 return null;
             }
             // Create new frame in case it doesn't exist or there all pins in this frame is knocked out
@@ -116,7 +120,7 @@ export default class BowlingManager implements IBowlingGame {
                 this._virtualFrame = new Frame(this._activeFrameIndex, this._gameConfig.pins, this._gameConfig.bonusSpareThrows, this._gameConfig.bonusStrikeThrows);
             }
             // if user is playing bonus frame -> continue with this frame
-            return this._virtualFrame
+            return this._virtualFrame;
         } else {
             return this._gameFrames[this._activeFrameIndex];
         }
@@ -155,7 +159,7 @@ export default class BowlingManager implements IBowlingGame {
 
         let previousThrowCounter = Math.max(this._gameConfig.bonusSpareThrows, this._gameConfig.bonusStrikeThrows);
         let startSearchFrom = this._isBonusGame === true ? this._gameFrames.length - 1 : this._gameFrames.length - 2;
-        for(let i = startSearchFrom; i > -1 && previousThrowCounter > 0; i--) {
+        for (let i = startSearchFrom; i > -1 && previousThrowCounter > 0; i--) {
             let frame = this._gameFrames[i];
             if (frame.Type === FRAME_TYPE.SPARE) {
                 frame.addPoints(lastThrow.knockDownPinIds.length);
@@ -163,7 +167,7 @@ export default class BowlingManager implements IBowlingGame {
             if (frame.Type === FRAME_TYPE.STRIKE) {
                 frame.addPoints(lastThrow.knockDownPinIds.length);
             }
-            previousThrowCounter-=frame.ThrowsNumber;
+            previousThrowCounter -= frame.ThrowsNumber;
         }
     }
 
@@ -174,18 +178,26 @@ export default class BowlingManager implements IBowlingGame {
 
     private updateTotalPoints() {
         let totalPoints = 0;
-        this._gameFrames.forEach((frame) => totalPoints+=frame.Points);
+        this._gameFrames.forEach((frame) => totalPoints += frame.Points);
         this._totalPoints = totalPoints;
     }
 
     private throwFramePins(frame: Frame): ThrowResult {
         let pinsToknockedOut = frame.getPinLocations(false);
-        let knockedPins = ThrowHelper.getRandomThrowResult(pinsToknockedOut);
+        let knockedPins = this.runThrow(pinsToknockedOut);
         this._throwCounter++;
         if (this._isBonusGame) {
             this._bonusThrows--;
         }
         return new ThrowResult(frame.Id, knockedPins, this._throwCounter);
+    }
+
+    private runThrow(pins: Array<number>) {
+        if (this._throwRunner) {
+            return this._throwRunner.executeThrow(pins);
+        } else {
+            throw new Error('Throw runner is undefined. Please provide runner to throw method or recreate the manager with your runner!');
+        }
     }
 
 }

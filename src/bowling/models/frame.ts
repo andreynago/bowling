@@ -1,6 +1,5 @@
 import Pin from './pin';
 import ThrowResult from './throw.result';
-import ThrowHelper from '../throw.helper';
 import {FRAME_TYPE} from '../consts/bowling.consts';
 import {IFrameStatus} from '../interfaces/bowling.interfaces';
 

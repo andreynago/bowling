@@ -26,4 +26,8 @@ interface IBowlingGameConfiguration {
     bonusSpareThrows: number;
 }
 
-export {IFrameStatus, IGameStatus, IBowlingGame, IBowlingGameConfiguration}
+interface IThrowRunner {
+    executeThrow(pins: Array<number>): Array<number>;
+}
+
+export {IFrameStatus, IGameStatus, IBowlingGame, IBowlingGameConfiguration, IThrowRunner};
